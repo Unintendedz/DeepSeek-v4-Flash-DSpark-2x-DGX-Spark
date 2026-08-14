@@ -14,6 +14,13 @@ if [ -f "$ENV_FILE" ]; then
 fi
 
 MODEL="${SERVED_MODEL_NAME:-deepseek-v4-flash-dspark}"
+vllm_curl() {
+  if [ -n "${VLLM_API_KEY:-}" ]; then
+    curl -H "Authorization: Bearer $VLLM_API_KEY" "$@"
+  else
+    curl "$@"
+  fi
+}
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 
@@ -21,7 +28,7 @@ echo "Running ${CONCURRENCY}-way smoke test against ${CHAT_URL}"
 
 for i in $(seq 1 "$CONCURRENCY"); do
   (
-    curl -fsS --max-time 180 "$CHAT_URL" \
+    vllm_curl -fsS --max-time 180 "$CHAT_URL" \
       -H "Content-Type: application/json" \
       -d '{"model":"'"$MODEL"'","messages":[{"role":"user","content":"Reply with OK and the number '"$i"'."}],"temperature":0.0}' \
       >"$tmpdir/$i.json"

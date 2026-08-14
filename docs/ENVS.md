@@ -61,6 +61,7 @@ PY
 | `VLLM_B12X_W4A16_FORCE_BLOCKS_MAX_M` | Experimental W4A16 selector |
 | `VLLM_B12X_W4A16_FORCE_TILE_CONFIG` | Experimental W4A16 selector |
 | `VLLM_HOST_IP` | Distributed bind address |
+| `VLLM_API_KEY` | Optional native Bearer authentication for `/v1`, `/v2`, and `/inference`; health and metrics routes remain unguarded. |
 | `VLLM_PREFIX_CACHE_RETENTION_INTERVAL` | Issue #26: sparsify SWA prefix-cache checkpoints (default 4096). This is the warm-hit fix; the coordinator must still let SWA shrink the common hit (hotfix v2, issue #36). |
 | `VLLM_CACHE_ROOT` | vLLM cache root (compose sets path) |
 | `CUTE_DSL_ARCH` | **Not** `VLLM_*` — CuTeDSL/b12x compile target (`sm_121a` on GB10) |

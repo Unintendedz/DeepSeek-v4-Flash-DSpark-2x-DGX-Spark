@@ -118,6 +118,15 @@ else
   bad "compose missing restart: unless-stopped"
 fi
 
+if grep -q 'VLLM_API_KEY:' docker-compose.dspark.yml \
+  && grep -q 'vllm_curl' start-deepseek-v4-flash-dspark.sh \
+  && grep -q 'vllm_curl' status-deepseek-v4-flash-dspark.sh \
+  && grep -q 'vllm_curl' smoke-deepseek-v4-flash-dspark.sh; then
+  ok "native API-key auth is wired through launcher/status/smoke"
+else
+  bad "VLLM_API_KEY plumbing is incomplete"
+fi
+
 # Mounted hotfix files must exist.
 for p in \
   patches/hotfix-encoding-dsv4-issue21.py \

@@ -157,6 +157,14 @@ fi
 API_URL="${API_URL:-http://$URL_HOST:$VLLM_PORT/v1/models}"
 CHAT_URL="${CHAT_URL:-http://$URL_HOST:$VLLM_PORT/v1/chat/completions}"
 
+vllm_curl() {
+  if [ -n "${VLLM_API_KEY:-}" ]; then
+    curl -H "Authorization: Bearer $VLLM_API_KEY" "$@"
+  else
+    curl "$@"
+  fi
+}
+
 : "${WORKER_HOST:?WORKER_HOST must be set in $ENV_FILE}"
 : "${MASTER_ADDR:?MASTER_ADDR must be set in $ENV_FILE}"
 : "${MASTER_PORT:?MASTER_PORT must be set in $ENV_FILE}"
@@ -665,7 +673,7 @@ echo "Issue #22 / v0.27 .sh hotfixes run in the compose entrypoint before vllm (
 echo "Waiting for DSpark vLLM API..."
 print_initial_startup_logs
 for _ in $(seq 1 "$WAIT_ATTEMPTS"); do
-  if curl -fsS --max-time 5 "$API_URL" >/dev/null 2>&1; then
+  if vllm_curl -fsS --max-time 5 "$API_URL" >/dev/null 2>&1; then
     echo "DeepSeek V4 Flash DSpark is running: $API_URL"
     compose_base 0 "" ps
     remote_compose "docker compose -p '$PROJECT_NAME' --env-file .env.dspark -f docker-compose.dspark.yml ps"
@@ -711,7 +719,7 @@ for _ in $(seq 1 "$WAIT_ATTEMPTS"); do
       fi
     fi
     echo "Running minimal OpenAI-compatible chat request..."
-    curl -fsS --max-time 60 "$CHAT_URL" \
+    vllm_curl -fsS --max-time 60 "$CHAT_URL" \
       -H "Content-Type: application/json" \
       -d '{"model":"'"${SERVED_MODEL_NAME:-deepseek-v4-flash-dspark}"'","messages":[{"role":"user","content":"Reply with OK."}],"temperature":0.0}' >/dev/null
     echo "Minimal chat request succeeded."

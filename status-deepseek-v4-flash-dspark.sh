@@ -16,6 +16,14 @@ if [ -f "$ENV_FILE" ]; then
   set +a
 fi
 
+vllm_curl() {
+  if [ -n "${VLLM_API_KEY:-}" ]; then
+    curl -H "Authorization: Bearer $VLLM_API_KEY" "$@"
+  else
+    curl "$@"
+  fi
+}
+
 : "${WORKER_HOST:?WORKER_HOST must be set in $ENV_FILE or environment}"
 : "${DSPARK_VLLM_IMAGE:=vllm-dspark-runtime:dspark-nvfp4-stage-c}"
 
@@ -51,5 +59,5 @@ echo "== port/API =="
 if command -v ss >/dev/null 2>&1; then
   ss -ltn "( sport = :$PORT )" || true
 fi
-curl -fsS --max-time 5 "$API_URL" || true
+vllm_curl -fsS --max-time 5 "$API_URL" || true
 echo

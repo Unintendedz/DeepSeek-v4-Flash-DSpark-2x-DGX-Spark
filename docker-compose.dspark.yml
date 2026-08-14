@@ -68,6 +68,7 @@ services:
       DSPARK_ENCODING_FILE: "${DSPARK_ENCODING_FILE:-}"
       VLLM_CACHE_ROOT: /cache/huggingface/vllm-cache
       VLLM_HOST_IP: "${VLLM_HOST_IP:-}"
+      VLLM_API_KEY: "${VLLM_API_KEY:-}"
 
       ENABLE_KV_SSD: "${ENABLE_KV_SSD:-0}"
       PYTHONHASHSEED: "${PYTHONHASHSEED:-0}"
