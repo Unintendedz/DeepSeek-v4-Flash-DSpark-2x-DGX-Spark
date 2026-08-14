@@ -54,11 +54,27 @@ def main():
         assert anchor in b, f"anchor missing: {anchor!r}"
     print("[2/6] real-file anchors verified (matches what hotfix asserts)")
 
-    # 3. apply #27 first (production order), then #43
-    apply_hotfix_to_copy(base, HOT27)
-    print("[3/6] applied issue #27 hotfix on top")
-    # real #27 hotfix marks
+    # 3. apply #27 with the experimental patch-time cap, then #43.
+    previous_cap = os.environ.get("DSPARK_MAX_INFLIGHT_PREFILLS")
+    os.environ["DSPARK_MAX_INFLIGHT_PREFILLS"] = "2"
+    try:
+        apply_hotfix_to_copy(base, HOT27)
+    finally:
+        if previous_cap is None:
+            os.environ.pop("DSPARK_MAX_INFLIGHT_PREFILLS", None)
+        else:
+            os.environ["DSPARK_MAX_INFLIGHT_PREFILLS"] = previous_cap
+    print("[3/6] applied issue #27 hotfix with cap 2")
+    # Real #27 hotfix marks and embeds the patch-time value as a literal.
     assert "# [issue27-hotfix]" in base.read_text()
+    assert ">= 2" in base.read_text()
+    before_27_reapply = base.read_text()
+    try:
+        apply_hotfix_to_copy(base, HOT27)
+        raise AssertionError("issue #27 re-apply did not exit as a no-op")
+    except SystemExit:
+        pass
+    assert base.read_text() == before_27_reapply
 
     apply_hotfix_to_copy(base, HOT43)
     assert "# [issue43-hotfix]" in base.read_text()
@@ -69,6 +85,7 @@ def main():
     print("[5/6] py_compile OK (patched scheduler is syntactically valid)")
 
     # 6. idempotent: re-apply #43 -> no-op (exits early with SystemExit)
+    before = base.read_text()
     try:
         apply_hotfix_to_copy(base, HOT43)
         print("[6/6] FAIL: re-apply did not raise SystemExit")
@@ -77,8 +94,7 @@ def main():
         pass
     # ensure file unchanged after re-apply attempt
     after = base.read_text()
-    once = base.read_text()
-    assert once == after
+    assert before == after
     print("[6/6] idempotent re-apply is a no-op (SystemExit, file unchanged)")
     print("\nPASS: issue #43 hotfix applies cleanly on top of #27, compiles, "
           "and is idempotent against the real container scheduler.py")

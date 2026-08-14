@@ -2,12 +2,12 @@
 """Hotfix (issue #43): bounded decode service during mixed prefill steps +
 per-step scheduler diagnostics. Layers on top of the issue #27 hotfix
 (``hotfix-dsv4-issue27-partial-prefill-concurrency.py``), which restored the
-v1 scheduler's missing ``max_num_partial_prefills`` admission gate.
+v1 scheduler's missing partial-prefill admission gate.
 
 Why this exists (issue #43 follow-up)
 -------------------------------------
-The #27 fix caps concurrent in-flight prefills to ``max_num_partial_prefills``
-(default 1) and ``--long-prefill-token-threshold`` caps each prefill chunk. It
+The #27 fix caps concurrent in-flight prefills to a patch-time value (default
+1), and ``--long-prefill-token-threshold`` caps each prefill chunk. It
 cured the *per-step* decode starvation (worst ITL 2790 ms -> 67 ms) but the
 reporter's six-cell cold retest still shows a wide *whole-request* decode-rate
 spread (min/max 0.107-0.238). Issue #43 asks for:

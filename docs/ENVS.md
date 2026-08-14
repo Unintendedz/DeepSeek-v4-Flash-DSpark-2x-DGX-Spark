@@ -73,6 +73,7 @@ PY
 | `ENABLE_KV_SSD` | `1` enables the experimental Mooncake SSD-backed external KV tier; default `0`. See [`mooncake-ssd-kv.md`](mooncake-ssd-kv.md). |
 | `DSPARK_MOONCAKE_WHEELS` / `DSPARK_MOONCAKE_CONFIG` / `DSPARK_KV_SSD_DIR` | Host paths used by the optional SSD profile. Assets must exist at the same paths on both nodes. |
 | `MOONCAKE_OFFLOAD_*` / `MC_STORE_CLIENT_METRIC` | Mooncake file-tier capacity, bucketing, heartbeat, I/O and metrics controls; only active with `ENABLE_KV_SSD=1`. |
+| `DSPARK_MAX_INFLIGHT_PREFILLS` | Patch-time issue #27 admission cap. Default `1`; `2` is an experimental profile paired with issue #43. This is not vLLM's unsupported CLI flag. |
 
 ### B. Stage-C / overlay-registered only (warn + no-op on Anemll 0.1.1)
 

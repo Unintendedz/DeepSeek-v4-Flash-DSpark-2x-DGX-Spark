@@ -28,7 +28,7 @@ services:
       - ${VLLM_GB10_PATCH_DIR:-./vllm_patch_gb10}:/opt/vllm-gb10-hybrid-nvfp4
       # Issue #21 encoder hotfix (encode_arguments_to_dsml dict args).
       - ${DSPARK_ENCODING_ISSUE21_HOTFIX:-./patches/hotfix-encoding-dsv4-issue21.py}:/opt/hotfix-encoding-dsv4-issue21.py:ro
-      # Issue #27 partial-prefill concurrency hotfix (enforce max_num_partial_prefills).
+      # Issue #27 partial-prefill concurrency hotfix (enforce admission cap).
       - ${DSPARK_ISSUE27_HOTFIX:-./patches/hotfix-dsv4-issue27-partial-prefill-concurrency.py}:/opt/hotfix-dsv4-issue27-partial-prefill-concurrency.py:ro
       # Issue #43 bounded decode service during mixed prefill steps + scheduler diag.
       - ${DSPARK_ISSUE43_HOTFIX:-./patches/hotfix-dsv4-issue43-decode-fairness-and-diag.py}:/opt/hotfix-dsv4-issue43-decode-fairness-and-diag.py:ro
@@ -88,6 +88,10 @@ services:
       MOONCAKE_OFFLOAD_USE_URING: "${MOONCAKE_OFFLOAD_USE_URING:-false}"
       MC_STORE_CLIENT_METRIC: "${MC_STORE_CLIENT_METRIC:-1}"
       VLLM_MOONCAKE_STORE_TIER_LOG: "${VLLM_MOONCAKE_STORE_TIER_LOG:-1}"
+
+      # Patch-time scheduler admission cap. Keep 1 for the conservative lane;
+      # 2 is an experimental profile paired with the issue #43 decode floor.
+      DSPARK_MAX_INFLIGHT_PREFILLS: "${DSPARK_MAX_INFLIGHT_PREFILLS:-1}"
 
       VLLM_ALLOW_LONG_MAX_MODEL_LEN: "${VLLM_ALLOW_LONG_MAX_MODEL_LEN:-1}"
       VLLM_SPARSE_INDEXER_MAX_LOGITS_MB: "${VLLM_SPARSE_INDEXER_MAX_LOGITS_MB:-256}"

@@ -78,6 +78,10 @@ stores reusable long-prefix KV on local NVMe and can reload it on a later turn.
 It is an alpha supplement for the pinned Anemll `0.1.1` image, is disabled by
 default, and does not claim higher single-stream decode tok/s.
 
+The separate [experimental two-prefill admission profile](docs/experimental-prefill-cap2.md)
+can reduce head-of-line waiting between long prompts. Its default remains 1;
+it changes scheduling, not weights, KV precision, sampling, or decode kernels.
+
 
 **Default agent-serving profile** (`.env.dspark.example` and README defaults):
 
