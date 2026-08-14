@@ -70,6 +70,9 @@ PY
 | `MTP_NUM_TOKENS` | Consumed by compose command line (not a vLLM env registry key) |
 | `DSPARK_SUPPRESS_STOPS_IN_REASONING` | `1` (default): after the detokenizer hotfix, client `stop` stays dormant until `</think>`. `0` restores stock matching. Also accepts Tony's `VLLM_SUPPRESS_STOPS_IN_REASONING` via compose interpolation (not added as a compose `VLLM_*` key, so Anemll does not warn). |
 | `DSPARK_SKIP_SUPPRESS_STOPS_HOTFIX` | `1` skips applying `patches/hotfix-dsv4-suppress-stops-in-reasoning.py` |
+| `ENABLE_KV_SSD` | `1` enables the experimental Mooncake SSD-backed external KV tier; default `0`. See [`mooncake-ssd-kv.md`](mooncake-ssd-kv.md). |
+| `DSPARK_MOONCAKE_WHEELS` / `DSPARK_MOONCAKE_CONFIG` / `DSPARK_KV_SSD_DIR` | Host paths used by the optional SSD profile. Assets must exist at the same paths on both nodes. |
+| `MOONCAKE_OFFLOAD_*` / `MC_STORE_CLIENT_METRIC` | Mooncake file-tier capacity, bucketing, heartbeat, I/O and metrics controls; only active with `ENABLE_KV_SSD=1`. |
 
 ### B. Stage-C / overlay-registered only (warn + no-op on Anemll 0.1.1)
 

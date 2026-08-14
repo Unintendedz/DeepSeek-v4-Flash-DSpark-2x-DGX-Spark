@@ -81,12 +81,18 @@ set +a
 
 # Vision mode flag selects 0731 GPU util (and whether the VL sidecar starts).
 #   ENABLE_VL_SIDECAR=1 → vision coexist → GPU_MEMORY_UTILIZATION_VISION (default 0.80)
-#   ENABLE_VL_SIDECAR=0 → text-only     → GPU_MEMORY_UTILIZATION_TEXT   (default 0.835)
+#   ENABLE_KV_SSD=1     → SSD KV cache   → GPU_MEMORY_UTILIZATION_SSD (default 0.75)
+#   otherwise           → text-only      → GPU_MEMORY_UTILIZATION_TEXT (default 0.835)
 # Explicit GPU_MEMORY_UTILIZATION in the env file is overridden by this profile
 # so one flag is enough to switch modes safely.
 if [ "${ENABLE_VL_SIDECAR:-0}" = "1" ]; then
   GPU_MEMORY_UTILIZATION="${GPU_MEMORY_UTILIZATION_VISION:-0.80}"
   DSPARK_SERVE_MODE="vision"
+elif [ "${ENABLE_KV_SSD:-0}" = "1" ]; then
+  # GB10 memory is unified. Mooncake's DRAM segment and SSD staging arena
+  # need real host headroom or the TP workers time out in swap pressure.
+  GPU_MEMORY_UTILIZATION="${GPU_MEMORY_UTILIZATION_SSD:-0.75}"
+  DSPARK_SERVE_MODE="text+ssd-kv"
 else
   GPU_MEMORY_UTILIZATION="${GPU_MEMORY_UTILIZATION_TEXT:-0.835}"
   DSPARK_SERVE_MODE="text"
@@ -423,7 +429,7 @@ print_resolved_profile() {
   echo "  max model len: ${MAX_MODEL_LEN:-1000000}"
   echo "  max num seqs: ${MAX_NUM_SEQS:-12}"
   echo "  max batched tokens: ${MAX_NUM_BATCHED_TOKENS:-8192}"
-  echo "  gpu memory utilization: ${GPU_MEMORY_UTILIZATION:-0.80} (text default ${GPU_MEMORY_UTILIZATION_TEXT:-0.835} / vision default ${GPU_MEMORY_UTILIZATION_VISION:-0.80})"
+  echo "  gpu memory utilization: ${GPU_MEMORY_UTILIZATION:-0.80} (text ${GPU_MEMORY_UTILIZATION_TEXT:-0.835} / SSD KV ${GPU_MEMORY_UTILIZATION_SSD:-0.75} / vision ${GPU_MEMORY_UTILIZATION_VISION:-0.80})"
   echo "  mtp speculative tokens: ${MTP_NUM_TOKENS:-5} (dspark_block_size min is 5)"
   echo "  default thinking: $DEFAULT_THINKING (off/low/high/max)"
   echo "  cudagraph capture size: $(( ${MAX_NUM_SEQS:-6} * (${MTP_NUM_TOKENS:-5} + 1) ))"
@@ -439,6 +445,7 @@ print_resolved_profile() {
   echo "  worker dir: $WORKER_DIR"
   echo "  worker cache: ${WORKER_HF_CACHE:-${HF_CACHE:-}}"
   echo "  GB10 vLLM patch: $ENABLE_VLLM_GB10_PATCH"
+  echo "  Mooncake SSD KV: ${ENABLE_KV_SSD:-0}"
   if [ "${ENABLE_VL_SIDECAR:-0}" = "1" ]; then
     echo "  VL sidecar: ${VL_SIDECAR_MODEL:-cyankiwi/Qwen3-VL-4B-Instruct-AWQ-4bit} TP=${VL_SIDECAR_TP_SIZE:-2} nnodes=${VL_SIDECAR_NNODES:-2} on 127.0.0.1:${VL_SIDECAR_PORT:-8889} (util ${VL_SIDECAR_GPU_UTIL:-0.04}/GPU, kv ${VL_SIDECAR_KV_CACHE_DTYPE:-int4_per_token_head}, master-port ${VL_SIDECAR_MASTER_PORT:-25100})"
     echo "  vision MCP install: ${INSTALL_VISION_MCP:-1} (only when ENABLE_VL_SIDECAR=1; harnesses: ${VISION_MCP_HARNESSES:-auto})"
@@ -469,6 +476,33 @@ print_resolved_profile() {
   if [ "$ENABLE_VLLM_GB10_PATCH" = "1" ]; then
     echo "  GB10 vLLM patch dir: $VLLM_GB10_PATCH_DIR"
     echo "  GB10 hybrid NVFP4 M threshold: ${GB10_HYBRID_NVFP4_M_THRESHOLD:-128}"
+  fi
+}
+
+validate_ssd_assets() {
+  [ "${ENABLE_KV_SSD:-0}" = "1" ] || return 0
+
+  local wheel_dir config_file
+  local -a msgpack_wheels mooncake_wheels
+  wheel_dir="${DSPARK_MOONCAKE_WHEELS:-$HOME/dspark-mooncake-wheels}"
+  config_file="${DSPARK_MOONCAKE_CONFIG:-$HOME/dspark-local/mooncake-standalone.json}"
+
+  shopt -s nullglob
+  msgpack_wheels=("$wheel_dir"/msgpack-*.whl)
+  mooncake_wheels=("$wheel_dir"/mooncake_transfer_engine_cuda13-*.whl)
+  shopt -u nullglob
+  if [ ! -f "$config_file" ] || [ "${#msgpack_wheels[@]}" -eq 0 ] || [ "${#mooncake_wheels[@]}" -eq 0 ]; then
+    echo "Mooncake SSD assets are incomplete on the head node." >&2
+    echo "Expected config: $config_file" >&2
+    echo "Expected wheels: $wheel_dir/{msgpack-*,mooncake_transfer_engine_cuda13-*}.whl" >&2
+    exit 1
+  fi
+
+  if ! ssh "$WORKER_HOST" \
+    "test -f $(printf '%q' "$config_file") && test -n \"\$(find $(printf '%q' "$wheel_dir") -maxdepth 1 -type f -name 'msgpack-*.whl' -print -quit)\" && test -n \"\$(find $(printf '%q' "$wheel_dir") -maxdepth 1 -type f -name 'mooncake_transfer_engine_cuda13-*.whl' -print -quit)\""; then
+    echo "Mooncake SSD assets are incomplete on worker $WORKER_HOST." >&2
+    echo "Stage the same config and wheel paths on both nodes; see docs/mooncake-ssd-kv.md." >&2
+    exit 1
   fi
 }
 
@@ -510,6 +544,8 @@ ssh -o BatchMode=yes -o ConnectTimeout=10 "$WORKER_HOST" "true" >/dev/null || {
   echo "Cannot reach worker with passwordless SSH: $WORKER_HOST" >&2
   exit 1
 }
+
+validate_ssd_assets
 
 ssh "$WORKER_HOST" "docker image inspect '$DSPARK_VLLM_IMAGE' >/dev/null" || {
   echo "Missing worker Docker image $DSPARK_VLLM_IMAGE." >&2
@@ -582,6 +618,12 @@ if [ -f "$DSPARK_ISSUE26_HOTFIX" ]; then
   echo "Syncing Issue #26 hybrid-SWA-min hotfix to ${WORKER_HOST}:${WORKER_DIR}/patches/"
   ssh "$WORKER_HOST" "mkdir -p '${REMOTE_WORKER_DIR}/patches'"
   scp "$DSPARK_ISSUE26_HOTFIX" "${WORKER_HOST}:${REMOTE_WORKER_DIR}/patches/hotfix-dsv4-issue26-hybrid-swa-min.py"
+fi
+DSPARK_MOONCAKE_EAGLE_LOOKUP_HOTFIX="${DSPARK_MOONCAKE_EAGLE_LOOKUP_HOTFIX:-$SCRIPT_DIR/patches/hotfix-dsv4-mooncake-eagle-lookup.py}"
+if [ -f "$DSPARK_MOONCAKE_EAGLE_LOOKUP_HOTFIX" ]; then
+  echo "Syncing Mooncake DSpark/EAGLE lookup hotfix to ${WORKER_HOST}:${WORKER_DIR}/patches/"
+  ssh "$WORKER_HOST" "mkdir -p '${REMOTE_WORKER_DIR}/patches'"
+  scp "$DSPARK_MOONCAKE_EAGLE_LOOKUP_HOTFIX" "${WORKER_HOST}:${REMOTE_WORKER_DIR}/patches/hotfix-dsv4-mooncake-eagle-lookup.py"
 fi
 DSPARK_SUPPRESS_STOPS_HOTFIX="${DSPARK_SUPPRESS_STOPS_HOTFIX:-$SCRIPT_DIR/patches/hotfix-dsv4-suppress-stops-in-reasoning.py}"
 if [ -f "$DSPARK_SUPPRESS_STOPS_HOTFIX" ]; then

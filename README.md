@@ -71,6 +71,13 @@ logic ships inside the image rather than as a host bind-mount.
 > [`docs/ENVS.md`](docs/ENVS.md). Stage-C users should merge
 > `docker-compose.stage-c.override.yml`.
 
+### Experimental companion profile
+
+An opt-in [Mooncake SSD-backed external KV tier](docs/mooncake-ssd-kv.md)
+stores reusable long-prefix KV on local NVMe and can reload it on a later turn.
+It is an alpha supplement for the pinned Anemll `0.1.1` image, is disabled by
+default, and does not claim higher single-stream decode tok/s.
+
 
 **Default agent-serving profile** (`.env.dspark.example` and README defaults):
 

@@ -18,6 +18,7 @@ for f in \
   prepare-dspark-model-cache.sh \
   smoke-deepseek-v4-flash-dspark.sh \
   scripts/ci-validate.sh \
+  scripts/validate-mooncake-ssd-hotfix.sh \
   scripts/verify-overlay-sources.sh \
   patches/*.sh
 do
@@ -122,6 +123,7 @@ for p in \
   patches/hotfix-encoding-dsv4-issue21.py \
   patches/hotfix-dsv4-issue26-hybrid-swa-min.py \
   patches/hotfix-dsv4-issue27-partial-prefill-concurrency.py \
+  patches/hotfix-dsv4-mooncake-eagle-lookup.py \
   patches/hotfix-nvfp4-ds-mla-issue22.sh \
   patches/hotfix-dsv4-suppress-stops-in-reasoning.py
 do
