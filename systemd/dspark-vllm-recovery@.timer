@@ -1,0 +1,11 @@
+[Unit]
+Description=Check DSpark vLLM API health for %i
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=30s
+AccuracySec=5s
+Unit=dspark-vllm-recovery@%i.service
+
+[Install]
+WantedBy=timers.target

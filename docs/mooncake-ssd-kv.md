@@ -94,6 +94,34 @@ Illustrative live results from one 2x DGX Spark deployment on 2026-08-14:
 Subsequent warm turns in those sessions produced roughly 1.46-3.33 s TTFT.
 These are operational observations, not a cross-machine benchmark.
 
+## Reliability guard
+
+SSD mode deliberately uses vLLM's synchronous scheduler. The async batch queue
+can deliver an incomplete tensor-parallel result to Mooncake's KV aggregator on
+a large cache hit, which terminates the engine. Regular non-SSD profiles keep
+async scheduling enabled.
+
+The compose healthcheck marks a missing head API unhealthy. To restart both
+nodes automatically, install the included system timer on the head node and set
+the deployment paths:
+
+```bash
+mkdir -p ~/.config
+cat > ~/.config/dspark-vllm-recovery.env <<EOF
+DSPARK_REPO=$PWD
+ENV_FILE=$PWD/.env.dspark
+EOF
+chmod 600 ~/.config/dspark-vllm-recovery.env
+sudo cp systemd/dspark-vllm-recovery@.{service,timer} /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now "dspark-vllm-recovery@$USER.timer"
+```
+
+The service runs as the named account with its current `docker` supplementary
+group, so it can also use that account's SSH configuration for the worker. The
+guard leaves an intentionally stopped deployment stopped; it acts only when an
+existing head container reaches Docker's `unhealthy` state.
+
 ## Limits and rollback
 
 - This runtime patch targets exact source anchors in Anemll `0.1.1`; it refuses

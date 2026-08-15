@@ -14,6 +14,7 @@ echo "== shell syntax =="
 for f in \
   start-deepseek-v4-flash-dspark.sh \
   stop-deepseek-v4-flash-dspark.sh \
+  recover-deepseek-v4-flash-dspark.sh \
   validate-dspark-config.sh \
   prepare-dspark-model-cache.sh \
   smoke-deepseek-v4-flash-dspark.sh \
@@ -116,6 +117,23 @@ if grep -q 'restart: ${DSPARK_RESTART_POLICY:-unless-stopped}' docker-compose.ds
   ok "compose restart unless-stopped"
 else
   bad "compose missing restart: unless-stopped"
+fi
+
+if grep -q 'ASYNC_SCHEDULING_ARGS=(--async-scheduling)' docker-compose.dspark.yml \
+  && grep -q 'ASYNC_SCHEDULING_ARGS=(--no-async-scheduling)' docker-compose.dspark.yml \
+  && grep -q '"$${ASYNC_SCHEDULING_ARGS\[@\]}"' docker-compose.dspark.yml; then
+  ok "SSD mode disables async scheduling"
+else
+  bad "SSD/async scheduling compatibility guard is incomplete"
+fi
+
+if grep -q '^    healthcheck:' docker-compose.dspark.yml \
+  && grep -q 'recover-deepseek-v4-flash-dspark.sh' systemd/dspark-vllm-recovery@.service \
+  && grep -q 'TimeoutStartSec=15min' systemd/dspark-vllm-recovery@.service \
+  && grep -q 'OnUnitActiveSec=30s' systemd/dspark-vllm-recovery@.timer; then
+  ok "API healthcheck and recovery timer are wired"
+else
+  bad "API healthcheck/recovery timer wiring is incomplete"
 fi
 
 if grep -q 'VLLM_API_KEY:' docker-compose.dspark.yml \

@@ -454,6 +454,11 @@ print_resolved_profile() {
   echo "  worker cache: ${WORKER_HF_CACHE:-${HF_CACHE:-}}"
   echo "  GB10 vLLM patch: $ENABLE_VLLM_GB10_PATCH"
   echo "  Mooncake SSD KV: ${ENABLE_KV_SSD:-0}"
+  if [ "${ENABLE_KV_SSD:-0}" = "1" ]; then
+    echo "  async scheduling: disabled (Mooncake SSD compatibility)"
+  else
+    echo "  async scheduling: enabled"
+  fi
   if [ "${ENABLE_VL_SIDECAR:-0}" = "1" ]; then
     echo "  VL sidecar: ${VL_SIDECAR_MODEL:-cyankiwi/Qwen3-VL-4B-Instruct-AWQ-4bit} TP=${VL_SIDECAR_TP_SIZE:-2} nnodes=${VL_SIDECAR_NNODES:-2} on 127.0.0.1:${VL_SIDECAR_PORT:-8889} (util ${VL_SIDECAR_GPU_UTIL:-0.04}/GPU, kv ${VL_SIDECAR_KV_CACHE_DTYPE:-int4_per_token_head}, master-port ${VL_SIDECAR_MASTER_PORT:-25100})"
     echo "  vision MCP install: ${INSTALL_VISION_MCP:-1} (only when ENABLE_VL_SIDECAR=1; harnesses: ${VISION_MCP_HARNESSES:-auto})"

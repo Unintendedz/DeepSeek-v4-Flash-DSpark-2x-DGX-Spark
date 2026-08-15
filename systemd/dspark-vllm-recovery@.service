@@ -1,0 +1,14 @@
+[Unit]
+Description=Recover an unhealthy DSpark vLLM cluster for %i
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+TimeoutStartSec=15min
+User=%i
+Group=%i
+SupplementaryGroups=docker
+Environment=HOME=/home/%i
+EnvironmentFile=-/home/%i/.config/dspark-vllm-recovery.env
+ExecStart=/usr/bin/env bash -c 'exec "$$DSPARK_REPO/recover-deepseek-v4-flash-dspark.sh"'
