@@ -25,9 +25,19 @@ health_status() {
   docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "$1" 2>/dev/null || true
 }
 
+needs_recovery() {
+  local health restarts
+  health="$(health_status "$1")"
+  restarts="$(docker inspect --format '{{.RestartCount}}' "$1" 2>/dev/null || true)"
+
+  [ "$health" = "unhealthy" ] || {
+    [ "$health" != "healthy" ] && [[ "$restarts" =~ ^[1-9][0-9]*$ ]]
+  }
+}
+
 container="$(head_container)"
 [ -n "$container" ] || exit 0
-[ "$(health_status "$container")" = "unhealthy" ] || exit 0
+needs_recovery "$container" || exit 0
 
 exec 9>"$LOCK_FILE"
 flock -n 9 || exit 0
@@ -35,8 +45,11 @@ flock -n 9 || exit 0
 # Another check may have recovered the API while this invocation waited.
 container="$(head_container)"
 [ -n "$container" ] || exit 0
-[ "$(health_status "$container")" = "unhealthy" ] || exit 0
+needs_recovery "$container" || exit 0
 
-printf '%s DSpark API is unhealthy; restarting both nodes.\n' "$(date -Is)"
+printf '%s DSpark API needs recovery (health=%s, head_restarts=%s); restarting both nodes.\n' \
+  "$(date -Is)" \
+  "$(health_status "$container")" \
+  "$(docker inspect --format '{{.RestartCount}}' "$container" 2>/dev/null || true)"
 ENV_FILE="$ENV_FILE" "$SCRIPT_DIR/stop-deepseek-v4-flash-dspark.sh"
 ENV_FILE="$ENV_FILE" "$SCRIPT_DIR/start-deepseek-v4-flash-dspark.sh"
