@@ -75,6 +75,7 @@ PY
 | `DSPARK_MOONCAKE_WHEELS` / `DSPARK_MOONCAKE_CONFIG` / `DSPARK_KV_SSD_DIR` | Host paths used by the optional SSD profile. Assets must exist at the same paths on both nodes. |
 | `MOONCAKE_OFFLOAD_*` / `MC_STORE_CLIENT_METRIC` | Mooncake file-tier capacity, bucketing, heartbeat, I/O and metrics controls; only active with `ENABLE_KV_SSD=1`. |
 | `DSPARK_MAX_INFLIGHT_PREFILLS` | Patch-time issue #27 admission cap. Default `1`; `2` is an experimental profile paired with issue #43. This is not vLLM's unsupported CLI flag. |
+| `DSPARK_SKIP_SPIN_WAIT_HOTFIX` | `1` skips `patches/hotfix-gb10-spin-wait.sh` (issue #79: `busy_loop_s` 1s→2ms) |
 
 ### B. Stage-C / overlay-registered only (warn + no-op on Anemll 0.1.1)
 
@@ -118,7 +119,7 @@ docker compose --env-file .env.dspark \
 | `B12X_W4A16_TC_DECODE` | Non-`VLLM_` package/debug knob |
 | `VLLM_HOST` / `VLLM_PORT` | Used by **compose command substitution** / start scripts, not as in-process vLLM config envs in the same way as registry keys |
 | `DSPARK_MODEL`, `DSPARK_REVISION`, `DSPARK_VLLM_IMAGE`, `ENABLE_VLLM_GB10_PATCH`, … | Launcher / compose only |
-| `DSPARK_RESTART_POLICY` | Compose `restart:` (default `unless-stopped`, issue #38) |
+| `DSPARK_RESTART_POLICY` | Compose `restart:` (default `unless-stopped`, issue #38). After a reboot, dockerd restores the ranks, so `./start-…` exits **3** (already running) rather than 1. Supervising the launcher: set systemd `SuccessExitStatus=3` + `RemainAfterExit=yes`, or set `DSPARK_RESTART_POLICY=no` if the unit owns start/stop. Exit 3 does **not** prove the TP group is healthy (head-only reboot can leave a stale worker). |
 | `DSPARK_STOP_GRACE` | Compose `stop_grace_period` (default `10s`; do not use 180s — hangs stop) |
 
 

@@ -29,14 +29,20 @@ in-place inside the container (called from the compose entrypoint before
 ``exec vllm serve``).
 """
 import os
+import sys
 from pathlib import Path
+
+P = Path("/usr/local/lib/python3.12/dist-packages/vllm/v1/core/sched/scheduler.py")
+MARK = "# [issue27-hotfix] enforce the deployment prefill cap on admission"
+if len(sys.argv) > 1 and sys.argv[1] == "--status":
+    status_src = P.read_text() if P.is_file() else ""
+    print("issue27 partial-prefill cap        :",
+          "APPLIED" if MARK in status_src else "NOT APPLIED")
+    raise SystemExit(0)
 
 PREFILL_CAP = int(os.environ.get("DSPARK_MAX_INFLIGHT_PREFILLS", "1"))
 assert PREFILL_CAP >= 1, "DSPARK_MAX_INFLIGHT_PREFILLS must be >= 1"
-
-P = Path("/usr/local/lib/python3.12/dist-packages/vllm/v1/core/sched/scheduler.py")
 src = P.read_text()
-MARK = "# [issue27-hotfix] enforce the deployment prefill cap on admission"
 if MARK in src:
     print(f"[issue27-hotfix] already applied to {P}")
     raise SystemExit(0)
