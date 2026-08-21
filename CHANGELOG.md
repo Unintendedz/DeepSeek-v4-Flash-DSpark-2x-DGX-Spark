@@ -1,8 +1,30 @@
-## 2026-08-19
+## 2026-08-20
+
+### Changed
+
+- **Issue #66: GPU `thinking_token_budget` hotfix is now opt-in (`DSPARK_ENABLE_ISSUE31_GPU_HOTFIX`, default `0` = stock V2)**. Compose still mounts `patches/hotfix-dsv4-issue31-v2-thinking-budget-gpu.py` and start still syncs it to the worker, but the entrypoint only runs it when the flag is exactly `1` (fail-closed). Fresh clones omit `thinking_token_budget`; leaving the patch on by default reproduced the omit-field decode cliff. Start smoke omits the field unless the flag is on. Set `1` and recreate containers if a client needs the budget field.
 
 ### Fixed
 
+- **Hub timeouts abort large-shard downloads in `prepare-dspark-model-cache.sh`**: both `docker run` blocks (`run_download` and `verify_cache`) now pass `HF_HUB_DOWNLOAD_TIMEOUT` (default `120`) and `HF_HUB_ETAG_TIMEOUT` (default `30`). `huggingface_hub` defaults both to 10s, which is short enough that a slow or proxied link kills a multi-GB shard mid-transfer rather than riding it out. Override in `.env.dspark`.
+
+- **`spec-acceptance.py` no longer crashes on serves without spec-decode ([Issue #92](https://github.com/MiaAI-Lab/DeepSeek-v4-Flash-DSpark-2x-DGX-Spark/issues/92), reported by [@wbaguley](https://github.com/wbaguley))**: it formatted missing `drafted`/`accepted` counters before its no-spec guard, so `run-audit.sh` reported FAIL on a valid non-speculative serve. The guard now exits 0 before formatting either counter or starting the benchmark burst. The same report's parser/window items were already handled by [PR #91](https://github.com/MiaAI-Lab/DeepSeek-v4-Flash-DSpark-2x-DGX-Spark/pull/91) and are not re-claimed here.
+
+## 2026-08-19
+
+### Changed
+
+- **Ride out mid-serve TileLang/CuTeDSL JIT instead of killing EngineCore ([Issue #65](https://github.com/MiaAI-Lab/DeepSeek-v4-Flash-DSpark-2x-DGX-Spark/issues/65), [Issue #87](https://github.com/MiaAI-Lab/DeepSeek-v4-Flash-DSpark-2x-DGX-Spark/issues/87))**: compose now injects `VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS=1800` (stock 300) and `TILELANG_CACHE_DIR=/cache/huggingface/tilelang-cache` on the HF volume. Does not retune NCCL; a true TP hang still needs a paired `./stop && ./start`. Takes effect on the next container recreate.
+
+- **#27 hotfix: allow 2 overlapping chunked prefills via `DSPARK_MAX_INFLIGHT_PREFILLS` (default 2).** Anemll `0.1.1` still rejects `--max-num-partial-prefills` (issue #45). The shipped #27 gate therefore read `SchedulerConfig.max_num_partial_prefills` (always 1) and serialized every long prefill — 32K×c4 decode sat on the ~8 tok/s floor. The hotfix now honors `DSPARK_MAX_INFLIGHT_PREFILLS` (clamped 1–3) from compose. Live A/B on this 2× Spark stack (`thinking=false`, `LONG_PREFILL_TOKEN_THRESHOLD=1024`, #43 floor on): 32K×c4 per-stream decode **8.2 → 24.6 tok/s**; 256×c6 aggregate unchanged (~175); 12 min 32K×c2 soak 21/21 pass; preemptions 0. Set `1` to restore the old serial gate. Does not implement real Concurrent Partial Prefill.
+
+### Fixed
+
+- **Speculative-acceptance per-position curve was always empty ([PR #91](https://github.com/MiaAI-Lab/DeepSeek-v4-Flash-DSpark-2x-DGX-Spark/pull/91))**: the parser assumed `position` was followed by another label, but Anemll `0.1.1` emits it last, so every sample raised inside a swallowed exception. The parser now matches the label independent of order, excludes the sibling `_created` timestamp gauge, and reports this measurement window as accepted tokens per draft rather than container-lifetime totals.
+
 - **RULER-lite never reached its advertised context lengths ([Issue #81](https://github.com/MiaAI-Lab/DeepSeek-v4-Flash-DSpark-2x-DGX-Spark/issues/81))**: `pad_to_length` appended one haystack sentence per loop with `guard < 200`, so every cell capped at ~4.8k tokens while still exiting 0. It now bulk-pads and `run_case` fails if `/tokenize` is under 97% of the target.
+
+- **RULER-lite scored its own client timeout as a model FAIL past ~790k tokens ([PR #85](https://github.com/MiaAI-Lab/DeepSeek-v4-Flash-DSpark-2x-DGX-Spark/pull/85))**: `request_json` pinned `timeout=900`, but the recorded 899,994-token acceptance run needs 1,028.85 s to first token at ~874.8 prefill tok/s, so 900 s only covers ~787k tokens of prefill — the client hung up mid-prefill and the case was reported as a model failure. Adds `--request-timeout` (default unchanged at 900 s; must be finite and > 0), plumbed through `scripts/run-audit.sh` so a raised `--lengths` can be paired with it. Only the timeout half of PR #85 was taken: its `pad_to_length` rewrite duplicated `8997d41`, cost an extra `/tokenize` round trip at every depth, and dropped the `haystack_reps` test seam.
 
 ## 2026-08-18
 
@@ -53,7 +75,7 @@
 
 ### Changed
 
-- **GitHub Actions `validate` workflow**: on every push/PR, `scripts/ci-validate.sh` runs CPU-only recipe gates (shell syntax, patch compile, #21/#26 v2 unit tests, #49486/#48407 equality gate, overlay COPY check) and refuses to re-ship the withdrawn #31/#34 thinking-budget hook or a #26 v1 coordinator. This does **not** replace a live 2× Spark decode or tool-eval run.
+- **GitHub Actions `validate` workflow**: on every pull request and push to `main`, `scripts/ci-validate.sh` runs CPU-only recipe gates (shell syntax, patch compile, #21/#26 v2 unit tests, #49486/#48407 equality gate, overlay COPY check) and refuses to re-ship the withdrawn #31/#34 thinking-budget hook or a #26 v1 coordinator. This does **not** replace a live 2× Spark decode or tool-eval run.
 
 - **Reverted the #31/#34 `thinking_token_budget` patch (bug + hotfix)**: the V2 sampler hook, `ThinkingBudgetState` O(n) per-step scan, and omit-field defaults (`DEFAULT_THINKING_TOKEN_BUDGET=32768`, `DEFAULT_MAX_TOKENS=131072`) are **fully removed** from compose, start, and `patches/`. That path was the [#39](https://github.com/MiaAI-Lab/DeepSeek-v4-Flash-DSpark-2x-DGX-Spark/issues/39) **~4.7× decode tok/s cliff** at long context (Python scan × MTP rows on every request after #34). It is not incremental-scanned and left in; it is gone. Stock Anemll V2 again rejects `thinking_token_budget` (HTTP 400). Size client `max_tokens` (or set `DEFAULT_THINKING` below `max`) so a long think cannot empty `content`.
 

@@ -55,6 +55,7 @@ PY
 | `VLLM_SPARSE_INDEXER_MAX_LOGITS_MB` | Sparse indexer workspace cap |
 | `VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS` | Profiler / capture estimate |
 | `VLLM_USE_FLASHINFER_SAMPLER` | FlashInfer sampler |
+| `VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS` | `sample_tokens` RPC deadline (compose default **1800**; stock vLLM is 300). Issue #65/#87: mid-serve CuTeDSL/TileLang JIT can exceed 300s and kill EngineCore on TP=2. |
 | `VLLM_USE_BREAKABLE_CUDAGRAPH` | Set `0` to opt out of DS4's automatic breakable-graph mode and retain regular CUDA graphs |
 | `VLLM_USE_B12X_MOE` | Enable B12X MoE path |
 | `VLLM_B12X_W4A16_FORCE_BLOCKS_PER_SM` | Experimental W4A16 selector |
@@ -65,6 +66,7 @@ PY
 | `VLLM_PREFIX_CACHE_RETENTION_INTERVAL` | Issue #26: sparsify SWA prefix-cache checkpoints (default 4096). This is the warm-hit fix; the coordinator must still let SWA shrink the common hit (hotfix v2, issue #36). |
 | `VLLM_CACHE_ROOT` | vLLM cache root (compose sets path) |
 | `CUTE_DSL_ARCH` | **Not** `VLLM_*` — CuTeDSL/b12x compile target (`sm_121a` on GB10) |
+| `TILELANG_CACHE_DIR` | **Not** `VLLM_*`. Compose default `/cache/huggingface/tilelang-cache` (HF volume). Issue #65: in-image `~/.tilelang/cache` dies on container recreate. |
 | `TORCH_CUDA_ARCH_LIST` / `FLASHINFER_CUDA_ARCH_LIST` | Build/JIT arch lists |
 | `NCCL_*` / `TP_SOCKET_IFNAME` / `GLOO_SOCKET_IFNAME` | Fabric |
 | `HF_*` / `TRANSFORMERS_OFFLINE` | Hub cache behavior |
@@ -74,8 +76,9 @@ PY
 | `ENABLE_KV_SSD` | `1` enables the experimental Mooncake SSD-backed external KV tier; default `0`. See [`mooncake-ssd-kv.md`](mooncake-ssd-kv.md). |
 | `DSPARK_MOONCAKE_WHEELS` / `DSPARK_MOONCAKE_CONFIG` / `DSPARK_KV_SSD_DIR` | Host paths used by the optional SSD profile. Assets must exist at the same paths on both nodes. |
 | `MOONCAKE_OFFLOAD_*` / `MC_STORE_CLIENT_METRIC` | Mooncake file-tier capacity, bucketing, heartbeat, I/O and metrics controls; only active with `ENABLE_KV_SSD=1`. |
-| `DSPARK_MAX_INFLIGHT_PREFILLS` | Patch-time issue #27 admission cap. Default `1`; `2` is an experimental profile paired with issue #43. This is not vLLM's unsupported CLI flag. |
+| `DSPARK_MAX_INFLIGHT_PREFILLS` | Runtime issue #27 admission cap, clamped to `1`-`3`. Compose/profile default `2`, paired with issue #43 decode fairness. This is not vLLM's unsupported CLI flag. |
 | `DSPARK_SKIP_SPIN_WAIT_HOTFIX` | `1` skips `patches/hotfix-gb10-spin-wait.sh` (issue #79: `busy_loop_s` 1s→2ms) |
+| `DSPARK_ENABLE_ISSUE31_GPU_HOTFIX` | **Not** `VLLM_*`. Default `0` = stock V2 (no thinking_token_budget). `1` applies the GPU budget hotfix at boot (fail-closed). Issue #66: default-on omit-field traffic can hit a decode cliff. |
 
 ### B. Stage-C / overlay-registered only (warn + no-op on Anemll 0.1.1)
 

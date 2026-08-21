@@ -38,6 +38,8 @@ py_files+=(
   scripts/test-encoding-dsv4-issue21.py
   scripts/test-suppress-stops-in-reasoning.py
   scripts/test-assistant-final-continuation.py
+  scripts/spec-acceptance.py
+  scripts/test-spec-acceptance.py
   scripts/test-ruler-lite-pad.py
   scripts/ruler-lite.py
   scripts/verify-dsv4-027-equality-gate.py
@@ -60,8 +62,12 @@ python3 scripts/test-suppress-stops-in-reasoning.py -q
 ok "test-suppress-stops-in-reasoning"
 python3 scripts/test-assistant-final-continuation.py -q
 ok "test-assistant-final-continuation"
+python3 scripts/test-spec-acceptance.py -q
+ok "test-spec-acceptance"
 python3 scripts/test-ruler-lite-pad.py -q
 ok "test-ruler-lite-pad"
+python3 tests/test_issue27_inflight_cap.py -q
+ok "test_issue27_inflight_cap"
 python3 scripts/verify-dsv4-027-equality-gate.py
 ok "verify-dsv4-027-equality-gate"
 bash scripts/verify-overlay-sources.sh
@@ -138,11 +144,13 @@ if grep -q 'hotfix-dsv4-suppress-stops-in-reasoning.py' docker-compose.dspark.ym
 else
   bad "compose missing suppress-stops-in-reasoning"
 fi
-if grep -q 'hotfix-dsv4-issue31-v2-thinking-budget-gpu.py' docker-compose.dspark.yml \
-  && grep -q 'python3 /opt/hotfix-dsv4-issue31-v2-thinking-budget-gpu.py' docker-compose.dspark.yml; then
-  ok "compose applies GPU-resident V2 thinking budget"
+# Issue #66: GPU V2 thinking budget default OFF (stock sampler);
+# ON must be an exactly-1 gate with a fail-closed invocation.
+if grep -Fq 'DSPARK_ENABLE_ISSUE31_GPU_HOTFIX: "${DSPARK_ENABLE_ISSUE31_GPU_HOTFIX:-0}"' docker-compose.dspark.yml \
+  && grep -Fq 'if [ "$${DSPARK_ENABLE_ISSUE31_GPU_HOTFIX:-0}" = "1" ]; then python3 /opt/hotfix-dsv4-issue31-v2-thinking-budget-gpu.py || exit 1; fi;' docker-compose.dspark.yml; then
+  ok "compose gates issue31 GPU thinking-budget hotfix behind =1, fail-closed"
 else
-  bad "compose missing GPU-resident V2 thinking budget"
+  bad "compose must invoke issue31 GPU hotfix only when DSPARK_ENABLE_ISSUE31_GPU_HOTFIX=1, with || exit 1"
 fi
 if grep -q 'hotfix-dsv4-issue55-tool-truncation.py' docker-compose.dspark.yml \
   && grep -q 'python3 /opt/hotfix-dsv4-issue55-tool-truncation.py' docker-compose.dspark.yml; then
@@ -157,6 +165,12 @@ if grep -Fq 'DSPARK_ENABLE_ASSISTANT_FINAL_HOTFIX: "${DSPARK_ENABLE_ASSISTANT_FI
   ok "compose gates assistant-final hotfix behind =1, fail-closed"
 else
   bad "compose must invoke assistant-final hotfix only when DSPARK_ENABLE_ASSISTANT_FINAL_HOTFIX=1, with || exit 1"
+fi
+if grep -q 'VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS: "${VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS:-1800}"' docker-compose.dspark.yml \
+  && grep -q 'TILELANG_CACHE_DIR: "${TILELANG_CACHE_DIR:-/cache/huggingface/tilelang-cache}"' docker-compose.dspark.yml; then
+  ok "compose JIT timeout 1800s + persistent TileLang cache (#65/#87)"
+else
+  bad "compose missing VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS=1800 or TILELANG_CACHE_DIR"
 fi
 if grep -q 'restart: ${DSPARK_RESTART_POLICY:-unless-stopped}' docker-compose.dspark.yml; then
   ok "compose restart unless-stopped"

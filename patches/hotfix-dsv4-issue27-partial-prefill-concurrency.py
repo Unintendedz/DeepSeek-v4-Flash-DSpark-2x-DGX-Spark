@@ -16,11 +16,14 @@ grows with prompt length. (Issue #27.)
 
 Fix: at the top of the waiting-admission loop, break (don't admit a new
 prefill request) once the number of in-flight partial prefills has reached
-``DSPARK_MAX_INFLIGHT_PREFILLS`` (default 1). ``self._inflight_prefills`` is
-maintained by ``_update_after_schedule`` (populated for requests still needing
-more prefill chunks, discarded when they finish prefilling), so it correctly
-reflects the currently-prefilling set. Set the patch-time cap to 2 only for the
-experimental profile paired with the issue #43 decode-floor patch.
+the cap. The cap is ``DSPARK_MAX_INFLIGHT_PREFILLS`` (1-3, default 2 via
+compose) because this image rejects ``--max-num-partial-prefills``; if that
+env is unset/0 the hotfix falls back to ``SchedulerConfig.max_num_partial_prefills``
+(stock 1). ``self._inflight_prefills`` is maintained by
+``_update_after_schedule`` (populated for requests still needing more prefill
+chunks, discarded when they finish prefilling), so it correctly reflects the
+currently-prefilling set. With the compose default of 2, up to two request
+prefills can overlap while the issue #43 floor preserves decode budget.
 
 Idempotent: re-applying is a no-op once the marker is present.
 
@@ -28,7 +31,6 @@ Patches /usr/local/lib/python3.12/dist-packages/vllm/v1/core/sched/scheduler.py
 in-place inside the container (called from the compose entrypoint before
 ``exec vllm serve``).
 """
-import os
 import sys
 from pathlib import Path
 
@@ -40,8 +42,6 @@ if len(sys.argv) > 1 and sys.argv[1] == "--status":
           "APPLIED" if MARK in status_src else "NOT APPLIED")
     raise SystemExit(0)
 
-PREFILL_CAP = int(os.environ.get("DSPARK_MAX_INFLIGHT_PREFILLS", "1"))
-assert PREFILL_CAP >= 1, "DSPARK_MAX_INFLIGHT_PREFILLS must be >= 1"
 src = P.read_text()
 if MARK in src:
     print(f"[issue27-hotfix] already applied to {P}")
@@ -64,12 +64,21 @@ INJECT = ANCHOR + (
     "                # them get num_new_tokens==0 and are skipped (continue, not preempt)\n"
     "                # -> zero-preemption decode starvation (issue #27). _inflight_prefills\n"
     "                # is the set of running requests still needing prefill chunks.\n"
+    "                # DSPARK_MAX_INFLIGHT_PREFILLS (1-3) overrides the config field\n"
+    "                # because this image rejects --max-num-partial-prefills.\n"
+    "                _pp_cap = int((__import__('os').environ.get(\n"
+    "                    'DSPARK_MAX_INFLIGHT_PREFILLS') or '0') or 0)\n"
+    "                if _pp_cap <= 0:\n"
+    "                    _pp_cap = self.scheduler_config.max_num_partial_prefills\n"
+    "                if _pp_cap > 3:\n"
+    "                    _pp_cap = 3\n"
     "                if (\n"
-    "                    len(self._inflight_prefills)\n"
-    f"                    >= {PREFILL_CAP}\n"
+    "                    _pp_cap > 0\n"
+    "                    and len(self._inflight_prefills)\n"
+    "                    >= _pp_cap\n"
     "                ):\n"
     "                    break\n"
 )
 src = src.replace(ANCHOR, INJECT, 1)
 P.write_text(src)
-print(f"[issue27-hotfix] patched {P} with prefill cap {PREFILL_CAP}")
+print(f"[issue27-hotfix] patched {P}")
