@@ -81,7 +81,7 @@ set +a
 
 # Vision mode flag selects 0731 GPU util (and whether the VL sidecar starts).
 #   ENABLE_VL_SIDECAR=1 → vision coexist → GPU_MEMORY_UTILIZATION_VISION (default 0.80)
-#   ENABLE_KV_SSD=1     → SSD KV cache   → GPU_MEMORY_UTILIZATION_SSD (default 0.75)
+#   ENABLE_KV_SSD=1     → SSD KV cache   → GPU_MEMORY_UTILIZATION_SSD (default 0.755)
 #   otherwise           → text-only      → GPU_MEMORY_UTILIZATION_TEXT (default 0.835)
 # Explicit GPU_MEMORY_UTILIZATION in the env file is overridden by this profile
 # so one flag is enough to switch modes safely.
@@ -91,7 +91,7 @@ if [ "${ENABLE_VL_SIDECAR:-0}" = "1" ]; then
 elif [ "${ENABLE_KV_SSD:-0}" = "1" ]; then
   # GB10 memory is unified. Mooncake's DRAM segment and SSD staging arena
   # need real host headroom or the TP workers time out in swap pressure.
-  GPU_MEMORY_UTILIZATION="${GPU_MEMORY_UTILIZATION_SSD:-0.75}"
+  GPU_MEMORY_UTILIZATION="${GPU_MEMORY_UTILIZATION_SSD:-0.755}"
   DSPARK_SERVE_MODE="text+ssd-kv"
 else
   GPU_MEMORY_UTILIZATION="${GPU_MEMORY_UTILIZATION_TEXT:-0.835}"
@@ -433,7 +433,7 @@ print_resolved_profile() {
   echo "  max model len: ${MAX_MODEL_LEN:-1000000}"
   echo "  max num seqs: ${MAX_NUM_SEQS:-12}"
   echo "  max batched tokens: ${MAX_NUM_BATCHED_TOKENS:-8192}"
-  echo "  gpu memory utilization: ${GPU_MEMORY_UTILIZATION:-0.80} (text ${GPU_MEMORY_UTILIZATION_TEXT:-0.835} / SSD KV ${GPU_MEMORY_UTILIZATION_SSD:-0.75} / vision ${GPU_MEMORY_UTILIZATION_VISION:-0.80})"
+  echo "  gpu memory utilization: ${GPU_MEMORY_UTILIZATION:-0.80} (text ${GPU_MEMORY_UTILIZATION_TEXT:-0.835} / SSD KV ${GPU_MEMORY_UTILIZATION_SSD:-0.755} / vision ${GPU_MEMORY_UTILIZATION_VISION:-0.80})"
   echo "  mtp speculative tokens: ${MTP_NUM_TOKENS:-5} (dspark_block_size min is 5)"
   echo "  default thinking: $DEFAULT_THINKING (off/low/high/max)"
   echo "  issue31 GPU thinking_token_budget hotfix: ${DSPARK_ENABLE_ISSUE31_GPU_HOTFIX:-0} (0=stock V2 / 1=apply)"

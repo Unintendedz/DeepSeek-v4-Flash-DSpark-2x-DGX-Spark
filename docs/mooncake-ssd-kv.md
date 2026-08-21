@@ -41,7 +41,7 @@ Add this to `.env.dspark` on the head:
 
 ```env
 ENABLE_KV_SSD=1
-GPU_MEMORY_UTILIZATION_SSD=0.75
+GPU_MEMORY_UTILIZATION_SSD=0.755
 DSPARK_MOONCAKE_WHEELS=${HOME}/dspark-mooncake-wheels
 DSPARK_MOONCAKE_CONFIG=${HOME}/dspark-local/mooncake-standalone.json
 DSPARK_KV_SSD_DIR=${HOME}/.cache/dspark-kv-ssd
@@ -128,7 +128,7 @@ existing head container reaches Docker's `unhealthy` state.
   to patch an unknown image instead of guessing.
 - Loads are synchronous and fail closed: an incomplete TP load raises before
   inference. It does not yet fall back cleanly to full recomputation.
-- `GPU_MEMORY_UTILIZATION_SSD=0.75` trades some in-memory KV capacity for the
+- `GPU_MEMORY_UTILIZATION_SSD=0.755` trades some in-memory KV capacity for the
   Mooncake staging arena on GB10 unified memory.
 - Cold NVMe recovery is slower than an in-memory prefix hit, and SSD capacity,
   endurance, and filesystem latency matter.
